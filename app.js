@@ -27,10 +27,14 @@ class ESPWebFlasher {
         // License state
         this.licenseKey = null;
         this.licenseValidated = false;
+        this.accessToken = null; // Token từ Worker API
         
         // Cloudflare state
         this.turnstileVerified = false;
         this.turnstileToken = null;
+        
+        // Worker API URL
+        this.workerApiUrl = 'https://minizflash.giongaysau.workers.dev';
         
         // Initialize security & license managers
         this.security = new SecurityManager();
@@ -163,7 +167,7 @@ class ESPWebFlasher {
         card.classList.add('selected');
 
         const name = card.querySelector('h3').textContent;
-        const firmwareId = parseInt(card.dataset.id);
+        const firmwareId = card.dataset.id; // Dùng string ID để match với Worker config
         const requiresLicense = card.dataset.requiresLicense === 'true';
 
         // Hiển thị/ẩn license section
@@ -174,6 +178,7 @@ class ESPWebFlasher {
             if (this.selectedFirmwareId !== firmwareId) {
                 this.licenseKey = null;
                 this.licenseValidated = false;
+                this.accessToken = null;
                 document.getElementById('licenseKeyInput').value = '';
                 document.getElementById('licenseStatus').classList.add('hidden');
             }
@@ -182,67 +187,90 @@ class ESPWebFlasher {
             this.licenseValidated = true; // Không cần license
         }
 
-        this.log(`📥 Đang tải ${name}...`, 'info');
+        this.selectedFirmwareId = firmwareId;
+        this.selectedFileName = name;
 
-        try {
-            // Lấy URL firmware - sử dụng relative path để tránh CORS
-            const firmwareFiles = {
-                1: 'firmware/firmware1.bin',
-                2: 'firmware/firmware2.bin',
-                3: 'firmware/firmware3.bin',
-                4: 'firmware/firmware_demo.bin'
-            };
-
-            const url = firmwareFiles[firmwareId];
-            if (!url) {
-                throw new Error('Firmware ID không hợp lệ');
-            }
-
-            // Thêm cache busting
-            const fetchUrl = `${url}?t=${Date.now()}`;
-
-            const response = await fetch(fetchUrl, {
-                method: 'GET',
-                cache: 'no-store'
-            });
-
-            if (!response.ok) {
-                if (response.status === 404) {
-                    throw new Error(`File firmware chưa được upload. Vui lòng upload file ${url}`);
-                }
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-
-            const arrayBuffer = await response.arrayBuffer();
-            this.firmwareData = new Uint8Array(arrayBuffer);
-
-            // Kiểm tra file có hợp lệ không
-            if (this.firmwareData.length < 1000) {
-                throw new Error('File firmware quá nhỏ hoặc không hợp lệ');
-            }
-
-            this.selectedFirmwareId = firmwareId;
-            this.selectedFileName = name;
-
-            // Hiển thị thông tin file
-            const fileInfo = document.getElementById('githubFileInfo');
+        // Hiển thị thông tin - chưa tải firmware (sẽ tải khi flash với license)
+        const fileInfo = document.getElementById('githubFileInfo');
+        
+        if (requiresLicense) {
             fileInfo.innerHTML = `
-                <strong>✅ ${name}</strong><br>
-                📦 Kích thước: ${this.formatBytes(this.firmwareData.length)}<br>
-                ✓ Sẵn sàng nạp
+                <strong>📦 ${name}</strong><br>
+                🔐 Firmware này yêu cầu license key<br>
+                ⏳ Nhập license để tải firmware từ server bảo mật
             `;
-            fileInfo.classList.remove('hidden');
+            this.firmwareData = null; // Chưa có data, cần license
+        } else {
+            // Firmware không cần license - tải từ public folder
+            this.log(`📥 Đang tải ${name}...`, 'info');
+            try {
+                const firmwareFiles = {
+                    'demo': 'firmware/firmware_demo.bin'
+                };
+                
+                const url = firmwareFiles[firmwareId] || `firmware/${firmwareId}.bin`;
+                const fetchUrl = `${url}?t=${Date.now()}`;
+                
+                const response = await fetch(fetchUrl, {
+                    method: 'GET',
+                    cache: 'no-store'
+                });
 
-            this.log(`✅ ${name} đã tải thành công (${this.formatBytes(this.firmwareData.length)})`, 'success');
-            
-            // Cập nhật trạng thái nút Flash
-            this.updateFlashButtonState();
-
-        } catch (error) {
-            this.log(`❌ Lỗi tải firmware: ${error.message}`, 'error');
-            card.classList.remove('selected');
-            this.firmwareData = null;
+                if (response.ok) {
+                    const arrayBuffer = await response.arrayBuffer();
+                    this.firmwareData = new Uint8Array(arrayBuffer);
+                    
+                    fileInfo.innerHTML = `
+                        <strong>✅ ${name}</strong><br>
+                        📦 Kích thước: ${this.formatBytes(this.firmwareData.length)}<br>
+                        ✓ Sẵn sàng nạp
+                    `;
+                    this.log(`✅ ${name} đã tải thành công`, 'success');
+                } else {
+                    throw new Error('File not found');
+                }
+            } catch (error) {
+                fileInfo.innerHTML = `
+                    <strong>📦 ${name}</strong><br>
+                    ⚠️ Firmware demo chưa có sẵn
+                `;
+                this.firmwareData = null;
+            }
         }
+        
+        fileInfo.classList.remove('hidden');
+        this.updateFlashButtonState();
+    }
+
+    /**
+     * Tải firmware từ Worker API (private repo)
+     */
+    async downloadFirmwareFromWorker(firmwareId) {
+        if (!this.accessToken || !this.deviceMAC) {
+            throw new Error('Cần access token và MAC address');
+        }
+
+        this.log('🔐 Đang tải firmware từ server bảo mật...', 'info');
+
+        const response = await fetch(`${this.workerApiUrl}/api/download-firmware`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                firmwareId: firmwareId,
+                accessToken: this.accessToken,
+                macAddress: this.deviceMAC
+            })
+        });
+
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+            throw new Error(error.error || `HTTP ${response.status}`);
+        }
+
+        const arrayBuffer = await response.arrayBuffer();
+        return new Uint8Array(arrayBuffer);
     }
 
     /**
@@ -474,9 +502,9 @@ class ESPWebFlasher {
     }
 
     /**
-     * Xác thực license key
+     * Xác thực license key - Gọi Worker API
      */
-    validateLicense() {
+    async validateLicense() {
         const licenseInput = document.getElementById('licenseKeyInput');
         const keyValue = licenseInput.value.trim().toUpperCase();
         const statusDiv = document.getElementById('licenseStatus');
@@ -497,33 +525,60 @@ class ESPWebFlasher {
             return;
         }
 
-        // Validate format
+        // Validate format locally first
         if (!this.license.isValidFormat(keyValue)) {
             this.showLicenseStatus('🔴 Sai định dạng. Sử dụng: MZxA-xxxx-xxxx-xxxx', 'error');
             licenseInput.value = '';
             return;
         }
 
-        // Validate key
-        const validation = this.license.validateKey(keyValue, this.deviceMAC);
+        this.showLicenseStatus('🔄 Đang xác thực với server...', 'info');
 
-        if (!validation.valid) {
-            this.showLicenseStatus(`🔴 ${validation.message}`, 'error');
-            this.licenseKey = null;
-            this.licenseValidated = false;
-            return;
-        }
+        try {
+            // Gọi Worker API để validate license
+            const response = await fetch(`${this.workerApiUrl}/api/validate-license`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    licenseKey: keyValue,
+                    macAddress: this.deviceMAC,
+                    turnstileToken: this.turnstileToken
+                })
+            });
 
-        // License hợp lệ
-        this.licenseKey = keyValue;
-        this.licenseValidated = true;
+            const result = await response.json();
 
-        if (validation.firstUse) {
-            this.showLicenseStatus(`🟢 Key đã kích hoạt! Đăng ký với ${this.deviceMAC}`, 'success');
-            this.log(`✅ License key được kích hoạt và đăng ký với thiết bị`, 'success');
-        } else {
-            this.showLicenseStatus(`🟢 Key hợp lệ! Lần sử dụng: ${validation.useCount}`, 'success');
-            this.log(`✅ License key xác thực thành công`, 'success');
+            if (result.valid) {
+                this.licenseKey = keyValue;
+                this.licenseValidated = true;
+                this.accessToken = result.accessToken; // Lưu access token để download firmware
+
+                this.showLicenseStatus(`🟢 ${result.message}`, 'success');
+                this.log(`✅ License xác thực thành công qua Worker API`, 'success');
+            } else {
+                this.showLicenseStatus(`🔴 ${result.error || 'License không hợp lệ'}`, 'error');
+                this.licenseKey = null;
+                this.licenseValidated = false;
+                this.accessToken = null;
+            }
+
+        } catch (error) {
+            console.error('License validation error:', error);
+            // Fallback to local validation if Worker API fails
+            this.log('⚠️ Không thể kết nối Worker API, dùng xác thực local', 'warning');
+            
+            const validation = this.license.validateKey(keyValue, this.deviceMAC);
+            if (validation.valid) {
+                this.licenseKey = keyValue;
+                this.licenseValidated = true;
+                this.showLicenseStatus(`🟢 ${validation.message} (local)`, 'success');
+            } else {
+                this.showLicenseStatus(`🔴 ${validation.message}`, 'error');
+                this.licenseKey = null;
+                this.licenseValidated = false;
+            }
         }
 
         this.updateFlashButtonState();
@@ -642,31 +697,40 @@ class ESPWebFlasher {
             return;
         }
 
-        if (!this.esploader || !this.firmwareData) {
-            this.log('❌ Vui lòng kết nối thiết bị và chọn firmware', 'error');
+        if (!this.esploader) {
+            this.log('❌ Vui lòng kết nối thiết bị', 'error');
+            return;
+        }
+
+        if (!this.selectedFirmwareId) {
+            this.log('❌ Vui lòng chọn firmware', 'error');
             return;
         }
 
         // Kiểm tra license cho firmware yêu cầu
         const selectedCard = document.querySelector('.firmware-card.selected');
-        if (selectedCard?.dataset.requiresLicense === 'true') {
-            if (!this.licenseValidated || !this.licenseKey) {
+        const requiresLicense = selectedCard?.dataset.requiresLicense === 'true';
+        
+        if (requiresLicense) {
+            if (!this.licenseValidated || !this.licenseKey || !this.accessToken) {
                 this.log('❌ Firmware này yêu cầu license key hợp lệ', 'error');
                 return;
             }
 
-            // Re-validate license trước khi flash
-            this.log('🔐 Đang xác thực license...', 'info');
-            const validation = this.license.validateKey(this.licenseKey, this.deviceMAC);
-            
-            if (!validation.valid) {
-                this.log(`❌ License không hợp lệ: ${validation.message}`, 'error');
-                this.licenseValidated = false;
-                this.updateFlashButtonState();
+            // Tải firmware từ Worker API (private repo)
+            try {
+                this.log('🔐 Đang tải firmware bảo mật từ server...', 'info');
+                this.firmwareData = await this.downloadFirmwareFromWorker(this.selectedFirmwareId);
+                this.log(`✅ Firmware đã tải: ${this.formatBytes(this.firmwareData.length)}`, 'success');
+            } catch (error) {
+                this.log(`❌ Lỗi tải firmware: ${error.message}`, 'error');
                 return;
             }
-            
-            this.log('✅ License đã xác thực', 'success');
+        }
+
+        if (!this.firmwareData) {
+            this.log('❌ Không có dữ liệu firmware', 'error');
+            return;
         }
 
         const flashBtn = document.getElementById('flashBtn');
