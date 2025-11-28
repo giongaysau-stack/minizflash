@@ -16,10 +16,18 @@
 
 const CONFIG = {
     // Secret key để mã hóa (THAY ĐỔI NGAY!)
-    SECRET_KEY: 'your-super-secret-key-change-this-immediately-2025',
+    SECRET_KEY: 'miniz-secret-2025-vn-firmware-protection',
     
     // Turnstile Secret Key (từ Cloudflare Dashboard)
     TURNSTILE_SECRET: '0x4AAAAAAACDiqpablKrVCk3s-1XQpd26ILE',
+    
+    // GitHub Token - LẤY TỪ ENVIRONMENT VARIABLE (bảo mật hơn)
+    // Không lưu token trực tiếp trong code!
+    // Thêm vào Worker Settings > Variables > Environment Variables
+    // Tên biến: GITHUB_TOKEN
+    
+    // GitHub Private Repo
+    GITHUB_REPO: 'giongaysau-stack/minizflash-private',
     
     // Allowed origins
     ALLOWED_ORIGINS: [
@@ -30,13 +38,12 @@ const CONFIG = {
         'http://127.0.0.1:5500'
     ],
     
-    // Firmware URLs (private - chỉ Worker có thể truy cập)
-    // Bạn nên upload firmware lên R2 Storage hoặc private repo
-    FIRMWARE_URLS: {
-        1: 'https://raw.githubusercontent.com/giongaysau-stack/minizflash-private/main/firmware1.bin',
-        2: 'https://raw.githubusercontent.com/giongaysau-stack/minizflash-private/main/firmware2.bin',
-        3: 'https://raw.githubusercontent.com/giongaysau-stack/minizflash-private/main/firmware3.bin',
-        4: 'https://raw.githubusercontent.com/giongaysau-stack/minizflash-private/main/firmware_demo.bin'
+    // Firmware files trong private repo
+    FIRMWARE_FILES: {
+        'firmware1': 'firmware/firmware1.bin',
+        'firmware2': 'firmware/firmware2.bin',
+        'firmware3': 'firmware/firmware3.bin',
+        'demo': 'firmware/firmware_demo.bin'
     }
 };
 
@@ -257,27 +264,61 @@ async function handleDownloadFirmware(request, env, corsHeaders) {
         }, corsHeaders, 403);
     }
 
-    // Get firmware URL
-    const firmwareUrl = CONFIG.FIRMWARE_URLS[firmwareId];
-    if (!firmwareUrl) {
+    // Get firmware path from config
+    const firmwarePath = CONFIG.FIRMWARE_FILES[firmwareId];
+    if (!firmwarePath) {
         return jsonResponse({ error: 'Firmware not found' }, corsHeaders, 404);
     }
 
-    // Fetch firmware from private source
-    const firmwareResponse = await fetch(firmwareUrl);
+    // Get GitHub token from environment variable
+    const githubToken = env.GITHUB_TOKEN;
+    if (!githubToken) {
+        console.error('GITHUB_TOKEN not configured in Worker environment');
+        return jsonResponse({ 
+            error: 'Server configuration error' 
+        }, corsHeaders, 500);
+    }
+
+    // Build GitHub API URL for private repo
+    const githubApiUrl = `https://api.github.com/repos/${CONFIG.GITHUB_REPO}/contents/${firmwarePath}`;
+
+    // Fetch firmware from private GitHub repo using token
+    const firmwareResponse = await fetch(githubApiUrl, {
+        headers: {
+            'Authorization': `Bearer ${githubToken}`,
+            'Accept': 'application/vnd.github.v3.raw',
+            'User-Agent': 'MiniZ-Flash-Worker'
+        }
+    });
+
     if (!firmwareResponse.ok) {
-        return jsonResponse({ error: 'Failed to fetch firmware' }, corsHeaders, 500);
+        console.error('GitHub API Error:', firmwareResponse.status, await firmwareResponse.text());
+        return jsonResponse({ 
+            error: 'Failed to fetch firmware from repository' 
+        }, corsHeaders, 500);
     }
 
     const firmwareData = await firmwareResponse.arrayBuffer();
 
-    // Return firmware as base64 (or binary)
+    // Log download for analytics (optional)
+    if (env.LICENSE_BINDINGS) {
+        const logKey = `download:${Date.now()}`;
+        await env.LICENSE_BINDINGS.put(logKey, JSON.stringify({
+            firmwareId,
+            macAddress,
+            timestamp: new Date().toISOString(),
+            size: firmwareData.byteLength
+        }), { expirationTtl: 86400 * 30 }); // Keep logs 30 days
+    }
+
+    // Return firmware binary
     return new Response(firmwareData, {
         headers: {
             ...corsHeaders,
             'Content-Type': 'application/octet-stream',
-            'Content-Disposition': `attachment; filename="firmware${firmwareId}.bin"`,
-            'X-Firmware-Size': firmwareData.byteLength.toString()
+            'Content-Disposition': `attachment; filename="${firmwareId}.bin"`,
+            'X-Firmware-Size': firmwareData.byteLength.toString(),
+            'Cache-Control': 'no-store'
         }
     });
 }
