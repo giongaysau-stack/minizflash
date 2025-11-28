@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MiniZ Flash - ESP Web Flasher with Security</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+    
+    <!-- Security Meta Tags -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta http-equiv="X-Frame-Options" content="DENY">
+    <meta http-equiv="X-XSS-Protection" content="1; mode=block">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    
+    <!-- Cloudflare Turnstile -->
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+</head>
+<body>
+    <!-- Cloudflare Security Overlay -->
+    <div id="securityOverlay" class="security-overlay">
+        <div class="security-modal">
+            <div class="security-header">
+                <div class="shield-icon">🛡️</div>
+                <h2>Xác thực bảo mật</h2>
+                <p>Vui lòng xác minh bạn không phải robot để tiếp tục</p>
+            </div>
+            
+            <div class="security-content">
+                <!-- Cloudflare Turnstile Widget -->
+                <div class="turnstile-container">
+                    <div id="cf-turnstile" 
+                         class="cf-turnstile" 
+                         data-sitekey="0x4AAAAAAACDimLVencsiSFqb"
+                         data-callback="onTurnstileSuccess"
+                         data-error-callback="onTurnstileError"
+                         data-expired-callback="onTurnstileExpired"
+                         data-theme="dark">
+                    </div>
+                    <div id="turnstileLoading" class="turnstile-loading">
+                        <div class="spinner"></div>
+                        <span>Đang tải Cloudflare Turnstile...</span>
+                    </div>
+                </div>
+                
+                <div id="securityStatus" class="security-status"></div>
+                
+                <div class="security-info">
+                    <p>🔒 Được bảo vệ bởi Cloudflare Turnstile</p>
+                    <p>📍 Phiên làm việc được mã hóa end-to-end</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="mainContent" class="container hidden">
+        <!-- Header -->
+        <header>
+            <div class="security-badge">
+                <span class="badge-icon">🔒</span>
+                <span id="securityBadgeText">Đã xác thực Cloudflare</span>
+            </div>
+            <h1>⚡ MiniZ Flash</h1>
+            <p class="subtitle">Nạp firmware ESP32/ESP8266 trực tiếp từ trình duyệt</p>
+            <a href="https://github.com/giongaysau-stack/minizflash" target="_blank" class="github-link">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+                </svg>
+                GitHub
+            </a>
+        </header>
+
+        <!-- Browser Warning -->
+        <div class="warning-box">
+            <strong>⚠️ Yêu cầu trình duyệt:</strong> Công cụ này yêu cầu Chrome, Edge, hoặc Opera với Web Serial API.
+        </div>
+
+        <!-- Step 1: Connect Device -->
+        <div class="card">
+            <h2>📡 Bước 1: Kết nối thiết bị</h2>
+            <div class="connect-section">
+                <button id="connectBtn" class="btn btn-primary">
+                    <span class="btn-icon">🔌</span>
+                    Kết nối thiết bị
+                </button>
+                <div id="connectionStatus" class="status-badge disconnected">Chưa kết nối</div>
+            </div>
+            <div id="deviceInfo" class="device-info hidden"></div>
+        </div>
+
+        <!-- Step 2: Select Firmware -->
+        <div class="card">
+            <h2>📦 Bước 2: Chọn Firmware</h2>
+            
+            <div class="firmware-mode-tabs">
+                <button class="tab-btn active" data-tab="github">📚 Firmware có sẵn</button>
+                <button class="tab-btn" data-tab="local">📁 Tải lên file</button>
+            </div>
+            
+            <!-- GitHub Firmware Tab -->
+            <div id="githubFirmwareTab" class="firmware-tab active">
+                <p class="tab-description">Chọn firmware từ danh sách có sẵn:</p>
+                <div class="firmware-grid">
+                    <div class="firmware-card" data-id="1" data-requires-license="true">
+                        <div class="firmware-icon">🎯</div>
+                        <h3>Firmware 1</h3>
+                        <p>Phiên bản đầy đủ tính năng</p>
+                        <span class="firmware-size">8.4 MB</span>
+                        <span class="license-badge">🔑 Yêu cầu License</span>
+                    </div>
+                    <div class="firmware-card" data-id="2" data-requires-license="true">
+                        <div class="firmware-icon">⚡</div>
+                        <h3>Firmware 2</h3>
+                        <p>Phiên bản tiêu chuẩn</p>
+                        <span class="firmware-size">8.4 MB</span>
+                        <span class="license-badge">🔑 Yêu cầu License</span>
+                    </div>
+                    <div class="firmware-card" data-id="3" data-requires-license="true">
+                        <div class="firmware-icon">🌐</div>
+                        <h3>Firmware 3</h3>
+                        <p>Phiên bản cao cấp</p>
+                        <span class="firmware-size">8.55 MB</span>
+                        <span class="license-badge">🔑 Yêu cầu License</span>
+                    </div>
+                </div>
+                
+                <!-- License Key Input Section -->
+                <div id="licenseSection" class="license-section hidden">
+                    <div class="license-input-box">
+                        <h3>🔑 Nhập License Key</h3>
+                        <p class="license-desc">Firmware này yêu cầu license key. Nhập key và nhấn xác thực để tiếp tục.</p>
+                        <div class="license-input-group">
+                            <input type="text" id="licenseKeyInput" class="license-input" 
+                                   placeholder="MZxA-xxxx-xxxx-xxxx" maxlength="19" 
+                                   autocomplete="off" spellcheck="false">
+                            <button id="validateLicenseBtn" class="btn btn-secondary">✓ Xác thực</button>
+                        </div>
+                        <div id="licenseStatus" class="license-status hidden"></div>
+                        
+                        <!-- Cloudflare Additional Verification for License -->
+                        <div id="licenseVerification" class="license-verification hidden">
+                            <p class="verify-text">🔐 Xác thực bổ sung để bảo vệ license:</p>
+                            <div id="licenseTurnstile" class="cf-turnstile-mini"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="githubFileInfo" class="file-info hidden"></div>
+            </div>
+            
+            <!-- Local File Tab -->
+            <div id="localFileTab" class="firmware-tab">
+                <div class="file-select-section">
+                    <input type="file" id="firmwareFile" accept=".bin" class="file-input">
+                    <label for="firmwareFile" class="file-label">
+                        <span class="btn-icon">📁</span>
+                        Chọn file Firmware (.bin)
+                    </label>
+                    <div id="fileInfo" class="file-info hidden"></div>
+                </div>
+                
+                <!-- Firmware Hash Verification -->
+                <div id="hashVerification" class="hash-verification hidden">
+                    <h4>🔍 Xác minh Firmware</h4>
+                    <div class="hash-info">
+                        <div class="hash-row">
+                            <span class="hash-label">SHA256:</span>
+                            <code id="firmwareHash" class="hash-value">-</code>
+                        </div>
+                        <div class="hash-row">
+                            <span class="hash-label">Trạng thái:</span>
+                            <span id="hashStatus" class="hash-status">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 3: Flash Options -->
+        <div class="card">
+            <h2>⚙️ Bước 3: Cấu hình Flash</h2>
+            <div class="options-grid">
+                <div class="option-group">
+                    <label for="flashOffset">Flash Offset:</label>
+                    <input type="text" id="flashOffset" value="0x0" class="input-field">
+                </div>
+                <div class="option-group">
+                    <label for="baudRate">Baud Rate:</label>
+                    <select id="baudRate" class="select-field">
+                        <option value="115200" selected>115200</option>
+                        <option value="230400">230400</option>
+                        <option value="460800">460800</option>
+                        <option value="921600">921600</option>
+                    </select>
+                </div>
+                <div class="option-group">
+                    <label for="flashMode">Flash Mode:</label>
+                    <select id="flashMode" class="select-field">
+                        <option value="dio" selected>DIO</option>
+                        <option value="qio">QIO</option>
+                        <option value="dout">DOUT</option>
+                        <option value="qout">QOUT</option>
+                    </select>
+                </div>
+                <div class="option-group">
+                    <label for="flashFreq">Flash Frequency:</label>
+                    <select id="flashFreq" class="select-field">
+                        <option value="40m" selected>40MHz</option>
+                        <option value="26m">26MHz</option>
+                        <option value="20m">20MHz</option>
+                        <option value="80m">80MHz</option>
+                    </select>
+                </div>
+            </div>
+            <div class="checkbox-group">
+                <label>
+                    <input type="checkbox" id="eraseFlash">
+                    <span>Xóa flash trước khi ghi</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Step 4: Flash Firmware -->
+        <div class="card">
+            <h2>⚡ Bước 4: Nạp Firmware</h2>
+            <button id="flashBtn" class="btn btn-success" disabled>
+                <span class="btn-icon">⚡</span>
+                Bắt đầu nạp
+            </button>
+            
+            <div id="progressSection" class="progress-section hidden">
+                <div class="progress-bar-container">
+                    <div id="progressBar" class="progress-bar"></div>
+                </div>
+                <div class="progress-info">
+                    <span id="progressText">0%</span>
+                    <span id="progressBytes">0 / 0 bytes</span>
+                </div>
+            </div>
+
+            <div id="console" class="console">
+                <div class="console-header">
+                    📋 Console Output
+                    <div class="console-actions">
+                        <span id="sessionInfo" class="session-info"></span>
+                        <button id="clearConsoleBtn" class="clear-console-btn">Xóa</button>
+                    </div>
+                </div>
+                <div id="consoleOutput" class="console-output">
+                    Đang chờ xác thực bảo mật...
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer>
+            <div class="footer-security">
+                <span>🛡️ Bảo mật bởi Cloudflare</span>
+                <span>🔐 Mã hóa End-to-End</span>
+                <span>✓ HTTPS Only</span>
+            </div>
+            <p>Được xây dựng với ❤️ bởi MiniZ Team</p>
+            <p>© 2025 MiniZ Flash - Powered by esptool-js</p>
+        </footer>
+    </div>
+
+    <!-- CryptoJS for hashing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+    
+    <!-- Cloudflare Turnstile Callbacks -->
+    <script>
+        // Global callbacks for Turnstile
+        window.turnstileToken = null;
+        window.turnstileVerified = false;
+        
+        function onTurnstileSuccess(token) {
+            window.turnstileToken = token;
+            window.turnstileVerified = true;
+            
+            // Update UI
+            document.getElementById('turnstileLoading').style.display = 'none';
+            document.getElementById('securityStatus').innerHTML = '✅ Xác thực thành công! Đang chuyển hướng...';
+            document.getElementById('securityStatus').className = 'security-status success';
+            
+            // Dispatch custom event
+            window.dispatchEvent(new CustomEvent('turnstileVerified', { detail: { token } }));
+            
+            // Show main content after short delay
+            setTimeout(() => {
+                document.getElementById('securityOverlay').classList.add('hidden');
+                document.getElementById('mainContent').classList.remove('hidden');
+                
+                // Initialize app
+                if (window.initializeFlasher) {
+                    window.initializeFlasher();
+                }
+            }, 1000);
+        }
+        
+        function onTurnstileError(error) {
+            document.getElementById('turnstileLoading').style.display = 'none';
+            document.getElementById('securityStatus').innerHTML = '❌ Lỗi xác thực. Vui lòng tải lại trang.';
+            document.getElementById('securityStatus').className = 'security-status error';
+            console.error('Turnstile error:', error);
+        }
+        
+        function onTurnstileExpired() {
+            window.turnstileToken = null;
+            window.turnstileVerified = false;
+            document.getElementById('securityStatus').innerHTML = '⚠️ Phiên xác thực đã hết hạn. Vui lòng xác thực lại.';
+            document.getElementById('securityStatus').className = 'security-status warning';
+            
+            // Re-render turnstile
+            if (window.turnstile) {
+                turnstile.reset();
+            }
+        }
+        
+        // Check if Turnstile loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                if (!window.turnstile) {
+                    // Fallback: Allow access if Turnstile fails to load (dev mode)
+                    if (window.location.hostname === 'localhost' || 
+                        window.location.hostname === '127.0.0.1' ||
+                        window.location.protocol === 'file:') {
+                        console.warn('Dev mode: Bypassing Turnstile');
+                        onTurnstileSuccess('dev-mode-token');
+                    } else {
+                        document.getElementById('turnstileLoading').innerHTML = 
+                            '<span style="color: #fbbf24;">⚠️ Turnstile không tải được. Vui lòng kiểm tra kết nối.</span>';
+                    }
+                }
+            }, 5000);
+        });
+    </script>
+    
+    <script type="module" src="app.js"></script>
+</body>
+</html>
