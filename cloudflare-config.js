@@ -21,7 +21,8 @@ const CloudflareConfig = {
     
     // Domain được phép sử dụng (GitHub Pages của bạn)
     ALLOWED_DOMAINS: [
-        'your-username.github.io',  // Thay bằng username GitHub của bạn
+        'minizjp.com',
+        'www.minizjp.com',
         'giongaysau-stack.github.io',
         'localhost',
         '127.0.0.1'

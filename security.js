@@ -19,7 +19,8 @@ class SecurityManager {
         // Domain được phép (thêm domain của bạn vào đây)
         this.trustedOrigins = [
             'giongaysau-stack.github.io',
-            'your-username.github.io',  // Thay bằng username GitHub của bạn
+            'minizjp.com',
+            'www.minizjp.com',
             'localhost',
             '127.0.0.1',
             ''  // Cho phép file:// protocol khi test local
