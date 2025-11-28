@@ -27,7 +27,7 @@ class SecurityManager {
         
         // Cloudflare configuration
         this.cloudflareConfig = {
-            siteKey: '0x4AAAAAAACDimLVencsiSFqb', // Site Key từ Cloudflare
+            siteKey: '0x4AAAAAAACDiqtq-o8UGuqXd', // Site Key từ Cloudflare
             secretKey: null, // Chỉ dùng ở server-side
             verifyUrl: 'https://challenges.cloudflare.com/turnstile/v0/siteverify'
         };

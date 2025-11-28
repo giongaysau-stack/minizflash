@@ -17,7 +17,7 @@ const CloudflareConfig = {
     
     // Site Key từ Cloudflare Turnstile Dashboard
     // Lấy từ: https://dash.cloudflare.com/?to=/:account/turnstile
-    TURNSTILE_SITE_KEY: '0x4AAAAAAACDimLVencsiSFqb',
+    TURNSTILE_SITE_KEY: '0x4AAAAAAACDiqtq-o8UGuqXd',
     
     // Domain được phép sử dụng (GitHub Pages của bạn)
     ALLOWED_DOMAINS: [
