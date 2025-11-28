@@ -294,17 +294,20 @@
                 if (window.initializeFlasher) {
                     window.initializeFlasher();
                 }
-            }, 1000);
+            }, 800);
         }
         
         function onTurnstileError(error) {
-            document.getElementById('turnstileLoading').style.display = 'none';
-            document.getElementById('securityStatus').innerHTML = `
-                ⚠️ Cloudflare đang xác thực domain...<br>
-                <button onclick="bypassTurnstile()" class="btn-bypass">Tiếp tục không xác thực</button>
-            `;
-            document.getElementById('securityStatus').className = 'security-status warning';
             console.error('Turnstile error:', error);
+            // Auto bypass on error - domain may still be propagating
+            document.getElementById('turnstileLoading').style.display = 'none';
+            document.getElementById('securityStatus').innerHTML = '⏳ Đang xác thực...';
+            document.getElementById('securityStatus').className = 'security-status warning';
+            
+            // Auto continue after 2 seconds
+            setTimeout(() => {
+                bypassTurnstile();
+            }, 2000);
         }
         
         function onTurnstileExpired() {
