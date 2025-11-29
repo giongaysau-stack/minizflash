@@ -3,63 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MiniZ Flash - ESP Web Flasher with Security</title>
+    <title>MiniZ Flash - ESP Web Flasher</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
-    
-    <!-- Security Meta Tags -->
-    <meta http-equiv="X-Content-Type-Options" content="nosniff">
-    <meta http-equiv="X-Frame-Options" content="DENY">
-    <meta http-equiv="X-XSS-Protection" content="1; mode=block">
-    <meta name="referrer" content="strict-origin-when-cross-origin">
-    
-    <!-- Cloudflare Turnstile -->
-    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
 <body>
-    <!-- Cloudflare Security Overlay -->
-    <div id="securityOverlay" class="security-overlay">
-        <div class="security-modal">
-            <div class="security-header">
-                <div class="shield-icon">🛡️</div>
-                <h2>Xác thực bảo mật</h2>
-                <p>Vui lòng xác minh bạn không phải robot để tiếp tục</p>
-            </div>
-            
-            <div class="security-content">
-                <!-- Cloudflare Turnstile Widget -->
-                <div class="turnstile-container">
-                    <div id="cf-turnstile" 
-                         class="cf-turnstile" 
-                         data-sitekey="0x4AAAAAAACDiqtq-o8UGuqXd"
-                         data-callback="onTurnstileSuccess"
-                         data-error-callback="onTurnstileError"
-                         data-expired-callback="onTurnstileExpired"
-                         data-theme="dark">
-                    </div>
-                    <div id="turnstileLoading" class="turnstile-loading">
-                        <div class="spinner"></div>
-                        <span>Đang tải Cloudflare Turnstile...</span>
-                    </div>
-                </div>
-                
-                <div id="securityStatus" class="security-status"></div>
-                
-                <div class="security-info">
-                    <p>🔒 Được bảo vệ bởi Cloudflare Turnstile</p>
-                    <p>📍 Phiên làm việc được mã hóa end-to-end</p>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div id="mainContent" class="container hidden">
+    <div class="container">
         <!-- Header -->
         <header>
-            <div class="security-badge">
-                <span class="badge-icon">🔒</span>
-                <span id="securityBadgeText">Đã xác thực Cloudflare</span>
-            </div>
             <h1>⚡ MiniZ Flash</h1>
             <p class="subtitle">Nạp firmware ESP32/ESP8266 trực tiếp từ trình duyệt</p>
             <a href="https://github.com/giongaysau-stack/minizflash" target="_blank" class="github-link">
@@ -101,25 +52,32 @@
             <div id="githubFirmwareTab" class="firmware-tab active">
                 <p class="tab-description">Chọn firmware từ danh sách có sẵn:</p>
                 <div class="firmware-grid">
-                    <div class="firmware-card" data-id="firmware1" data-requires-license="true">
+                    <div class="firmware-card" data-id="1" data-requires-license="true">
                         <div class="firmware-icon">🎯</div>
                         <h3>Firmware 1</h3>
                         <p>Phiên bản đầy đủ tính năng</p>
-                        <span class="firmware-size">8.4 MB</span>
+                        <span class="firmware-size">8.52 MB</span>
                         <span class="license-badge">🔑 Yêu cầu License</span>
                     </div>
-                    <div class="firmware-card" data-id="firmware2" data-requires-license="true">
+                    <div class="firmware-card" data-id="2" data-requires-license="true">
                         <div class="firmware-icon">⚡</div>
                         <h3>Firmware 2</h3>
                         <p>Phiên bản tiêu chuẩn</p>
                         <span class="firmware-size">8.4 MB</span>
                         <span class="license-badge">🔑 Yêu cầu License</span>
                     </div>
-                    <div class="firmware-card" data-id="firmware3" data-requires-license="true">
+                    <div class="firmware-card" data-id="3" data-requires-license="true">
                         <div class="firmware-icon">🌐</div>
                         <h3>Firmware 3</h3>
                         <p>Phiên bản cao cấp</p>
                         <span class="firmware-size">8.55 MB</span>
+                        <span class="license-badge">🔑 Yêu cầu License</span>
+                    </div>
+                    <div class="firmware-card" data-id="4" data-requires-license="true">
+                        <div class="firmware-icon">🔧</div>
+                        <h3>Firmware 221</h3>
+                        <p>Phiên bản đặc biệt</p>
+                        <span class="firmware-size">8.4 MB</span>
                         <span class="license-badge">🔑 Yêu cầu License</span>
                     </div>
                 </div>
@@ -134,14 +92,9 @@
                                    placeholder="MZxA-xxxx-xxxx-xxxx" maxlength="19" 
                                    autocomplete="off" spellcheck="false">
                             <button id="validateLicenseBtn" class="btn btn-secondary">✓ Xác thực</button>
+                            <button id="resetLicenseBtn" class="btn btn-danger" title="Reset license key đã bind">🔄 Reset</button>
                         </div>
                         <div id="licenseStatus" class="license-status hidden"></div>
-                        
-                        <!-- Cloudflare Additional Verification for License -->
-                        <div id="licenseVerification" class="license-verification hidden">
-                            <p class="verify-text">🔐 Xác thực bổ sung để bảo vệ license:</p>
-                            <div id="licenseTurnstile" class="cf-turnstile-mini"></div>
-                        </div>
                     </div>
                 </div>
                 
@@ -157,21 +110,6 @@
                         Chọn file Firmware (.bin)
                     </label>
                     <div id="fileInfo" class="file-info hidden"></div>
-                </div>
-                
-                <!-- Firmware Hash Verification -->
-                <div id="hashVerification" class="hash-verification hidden">
-                    <h4>🔍 Xác minh Firmware</h4>
-                    <div class="hash-info">
-                        <div class="hash-row">
-                            <span class="hash-label">SHA256:</span>
-                            <code id="firmwareHash" class="hash-value">-</code>
-                        </div>
-                        <div class="hash-row">
-                            <span class="hash-label">Trạng thái:</span>
-                            <span id="hashStatus" class="hash-status">-</span>
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>
@@ -241,128 +179,23 @@
             <div id="console" class="console">
                 <div class="console-header">
                     📋 Console Output
-                    <div class="console-actions">
-                        <span id="sessionInfo" class="session-info"></span>
-                        <button id="clearConsoleBtn" class="clear-console-btn">Xóa</button>
-                    </div>
+                    <button id="clearConsoleBtn" class="clear-console-btn">Xóa</button>
                 </div>
                 <div id="consoleOutput" class="console-output">
-                    Đang chờ xác thực bảo mật...
+                    Đang chờ kết nối...
                 </div>
             </div>
         </div>
 
         <!-- Footer -->
         <footer>
-            <div class="footer-security">
-                <span>🛡️ Bảo mật bởi Cloudflare</span>
-                <span>🔐 Mã hóa End-to-End</span>
-                <span>✓ HTTPS Only</span>
-            </div>
             <p>Được xây dựng với ❤️ bởi MiniZ Team</p>
             <p>© 2025 MiniZ Flash - Powered by esptool-js</p>
         </footer>
     </div>
 
-    <!-- CryptoJS for hashing -->
+    <!-- CryptoJS for MD5 hash -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
-    
-    <!-- Cloudflare Turnstile Callbacks -->
-    <script>
-        // Global callbacks for Turnstile
-        window.turnstileToken = null;
-        window.turnstileVerified = false;
-        
-        function onTurnstileSuccess(token) {
-            window.turnstileToken = token;
-            window.turnstileVerified = true;
-            
-            // Update UI
-            document.getElementById('turnstileLoading').style.display = 'none';
-            document.getElementById('securityStatus').innerHTML = '✅ Xác thực thành công! Đang chuyển hướng...';
-            document.getElementById('securityStatus').className = 'security-status success';
-            
-            // Dispatch custom event
-            window.dispatchEvent(new CustomEvent('turnstileVerified', { detail: { token } }));
-            
-            // Show main content after short delay
-            setTimeout(() => {
-                document.getElementById('securityOverlay').classList.add('hidden');
-                document.getElementById('mainContent').classList.remove('hidden');
-                
-                // Initialize app
-                if (window.initializeFlasher) {
-                    window.initializeFlasher();
-                }
-            }, 800);
-        }
-        
-        function onTurnstileError(error) {
-            console.error('Turnstile error:', error);
-            // Auto bypass on error - domain may still be propagating
-            document.getElementById('turnstileLoading').style.display = 'none';
-            document.getElementById('securityStatus').innerHTML = '⏳ Đang xác thực...';
-            document.getElementById('securityStatus').className = 'security-status warning';
-            
-            // Auto continue after 2 seconds
-            setTimeout(() => {
-                bypassTurnstile();
-            }, 2000);
-        }
-        
-        function onTurnstileExpired() {
-            window.turnstileToken = null;
-            window.turnstileVerified = false;
-            document.getElementById('securityStatus').innerHTML = '⚠️ Phiên xác thực đã hết hạn. Vui lòng xác thực lại.';
-            document.getElementById('securityStatus').className = 'security-status warning';
-            
-            // Re-render turnstile
-            if (window.turnstile) {
-                turnstile.reset();
-            }
-        }
-        
-        // Bypass function for when Turnstile is not configured
-        function bypassTurnstile() {
-            window.turnstileToken = 'bypass-token';
-            window.turnstileVerified = true;
-            
-            document.getElementById('securityStatus').innerHTML = '✅ Đã bỏ qua xác thực. Đang tiếp tục...';
-            document.getElementById('securityStatus').className = 'security-status success';
-            
-            setTimeout(() => {
-                document.getElementById('securityOverlay').classList.add('hidden');
-                document.getElementById('mainContent').classList.remove('hidden');
-                
-                if (window.initializeFlasher) {
-                    window.initializeFlasher();
-                }
-            }, 500);
-        }
-        
-        // Check if Turnstile loaded
-        document.addEventListener('DOMContentLoaded', () => {
-            // Hide loading after widget renders
-            setTimeout(() => {
-                const loading = document.getElementById('turnstileLoading');
-                if (loading) {
-                    loading.style.display = 'none';
-                }
-            }, 2000);
-            
-            // Fallback after 8 seconds
-            setTimeout(() => {
-                if (!window.turnstileVerified) {
-                    document.getElementById('securityStatus').innerHTML = `
-                        ⚠️ Turnstile chưa được cấu hình cho domain này.<br>
-                        <button onclick="bypassTurnstile()" class="btn-bypass">Tiếp tục vào trang</button>
-                    `;
-                    document.getElementById('securityStatus').className = 'security-status warning';
-                }
-            }, 8000);
-        });
-    </script>
-    
     <script type="module" src="app.js"></script>
 </body>
 </html>
